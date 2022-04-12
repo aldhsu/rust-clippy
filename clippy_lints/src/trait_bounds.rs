@@ -69,6 +69,35 @@ declare_clippy_lint! {
     "Check if the same trait bounds are specified twice during a function declaration"
 }
 
+declare_clippy_lint! {
+    /// ### What it does
+    /// Checks for multiple instances of the same where clause or trait bound
+    ///
+    /// ### Why is this bad?
+    /// Adds to code noise
+    ///
+    /// ### Example
+    /// ```rust
+    /// fn foo<T: Default + Default>(bar: T) {}
+    /// ```
+    /// Use instead:
+    /// ```rust
+    /// fn foo<T: Default>(bar: T) {}
+    /// ```
+    ///
+    /// ```rust
+    /// fn foo<T>(bar: T) where T: Default + Default {}
+    /// ```
+    /// Use instead:
+    /// ```rust
+    /// fn foo<T>(bar: T) where T: Default {}
+    /// ```
+    #[clippy::version = "1.62.0"]
+    pub REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND,
+    pedantic,
+    "Traits are repeated within trait bounds or where clause"
+}
+
 #[derive(Copy, Clone)]
 pub struct TraitBounds {
     max_trait_bounds: u64,
@@ -81,12 +110,13 @@ impl TraitBounds {
     }
 }
 
-impl_lint_pass!(TraitBounds => [TYPE_REPETITION_IN_BOUNDS, TRAIT_DUPLICATION_IN_BOUNDS]);
+impl_lint_pass!(TraitBounds => [TYPE_REPETITION_IN_BOUNDS, TRAIT_DUPLICATION_IN_BOUNDS, REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND]);
 
 impl<'tcx> LateLintPass<'tcx> for TraitBounds {
     fn check_generics(&mut self, cx: &LateContext<'tcx>, gen: &'tcx Generics<'_>) {
         self.check_type_repetition(cx, gen);
         check_trait_bound_duplication(cx, gen);
+        check_bounds_or_where_duplication(cx, gen);
     }
 
     fn check_trait_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx TraitItem<'tcx>) {
@@ -244,6 +274,53 @@ fn check_trait_bound_duplication(cx: &LateContext<'_>, gen: &'_ Generics<'_>) {
                     else {
                         trait_resolutions_direct.push((res_where, span_where));
                     }
+                }
+            }
+        }
+    }
+}
+
+fn check_bounds_or_where_duplication(cx: &LateContext<'_>, gen: &'_ Generics<'_>) {
+    if gen.span.from_expansion() {
+        return;
+    }
+
+    for param in gen.params {
+        let mut map = FxHashMap::default();
+        if let ParamName::Plain(name) = param.name {
+            for (definition, _, span_direct) in param.bounds.iter().rev().filter_map(get_trait_info_from_bound) {
+                if let Some(span_direct) = map.insert((name, definition), span_direct) {
+                    span_lint_and_help(
+                        cx,
+                        REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND,
+                        span_direct,
+                        "this trait bound has already been specified",
+                        None,
+                        "consider removing this trait bound",
+                    );
+                }
+            }
+        }
+    }
+
+    for predicate in gen.where_clause.predicates {
+        if let WherePredicate::BoundPredicate(ref bound_predicate) = predicate {
+            let mut where_clauses = FxHashMap::default();
+            for (definition, _, span_direct) in bound_predicate
+                .bounds
+                .iter()
+                .filter_map(get_trait_info_from_bound)
+                .rev()
+            {
+                if let Some(span_direct) = where_clauses.insert(definition, span_direct) {
+                    span_lint_and_help(
+                        cx,
+                        REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND,
+                        span_direct,
+                        "this where clause has already been specified",
+                        None,
+                        "consider removing this where clause",
+                    );
                 }
             }
         }

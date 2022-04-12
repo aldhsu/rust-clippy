@@ -493,6 +493,7 @@ store.register_lints(&[
     temporary_assignment::TEMPORARY_ASSIGNMENT,
     to_digit_is_some::TO_DIGIT_IS_SOME,
     trailing_empty_array::TRAILING_EMPTY_ARRAY,
+    trait_bounds::REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND,
     trait_bounds::TRAIT_DUPLICATION_IN_BOUNDS,
     trait_bounds::TYPE_REPETITION_IN_BOUNDS,
     transmute::CROSSPOINTER_TRANSMUTE,
