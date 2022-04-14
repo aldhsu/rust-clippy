@@ -1,5 +1,5 @@
-use clippy_utils::diagnostics::{span_lint_and_sugg, span_lint_and_help};
-use clippy_utils::source::{snippet, snippet_with_applicability, snippet_opt};
+use clippy_utils::diagnostics::{span_lint_and_help, span_lint_and_sugg};
+use clippy_utils::source::{snippet, snippet_opt, snippet_with_applicability};
 use clippy_utils::{SpanlessEq, SpanlessHash};
 use core::hash::{Hash, Hasher};
 use if_chain::if_chain;
@@ -281,34 +281,22 @@ fn check_trait_bound_duplication(cx: &LateContext<'_>, gen: &'_ Generics<'_>) {
 }
 
 fn check_bounds_or_where_duplication(cx: &LateContext<'_>, gen: &'_ Generics<'_>) {
-    if gen.span.from_expansion() {
-        return;
-    }
-
-    for param in gen.params {
+    fn rollup_traits(cx: &LateContext<'_>, bounds: &[GenericBound<'_>], msg: &str) {
         let mut map = FxHashMap::default();
         let mut repeated_spans = false;
-        if let ParamName::Plain(name) = param.name { // other alternatives are errors and elided which won't have duplicates
-            for bound in param.bounds.iter().filter_map(get_trait_info_from_bound) {
-                let (definition, _, span_direct) = bound;
-                if let Some(_) = map.insert(definition, span_direct) {
-                    repeated_spans = true;
-                }
+        for bound in bounds.iter().filter_map(get_trait_info_from_bound) {
+            let (definition, _, span_direct) = bound;
+            if map.insert(definition, span_direct).is_some() {
+                repeated_spans = true;
             }
+        }
 
-            if repeated_spans {
-                let all_trait_span = param
-                    .bounds
-                    .get(0)
-                    .unwrap()
-                    .span()
-                    .to(
-                        param
-                        .bounds
-                        .iter()
-                        .last()
-                        .unwrap()
-                        .span());
+        if_chain! {
+            if repeated_spans;
+            if let Some(first_trait) = bounds.get(0);
+            if let Some(last_trait) = bounds.iter().last();
+            then {
+                let all_trait_span = first_trait.span().to(last_trait.span());
 
                 let mut traits = map.values()
                     .filter_map(|span| snippet_opt(cx, *span))
@@ -320,7 +308,7 @@ fn check_bounds_or_where_duplication(cx: &LateContext<'_>, gen: &'_ Generics<'_>
                     cx,
                     REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND,
                     all_trait_span,
-                    "this trait bound contains repeated elements",
+                    msg,
                     "try",
                     traits,
                     Applicability::MachineApplicable
@@ -329,50 +317,24 @@ fn check_bounds_or_where_duplication(cx: &LateContext<'_>, gen: &'_ Generics<'_>
         }
     }
 
+    if gen.span.from_expansion() || (gen.params.is_empty() && gen.where_clause.predicates.is_empty()) {
+        return;
+    }
+
+    for param in gen.params {
+        if let ParamName::Plain(_) = param.name {
+            // other alternatives are errors and elided which won't have duplicates
+            rollup_traits(cx, param.bounds, "this trait bound contains repeated elements");
+        }
+    }
+
     for predicate in gen.where_clause.predicates {
         if let WherePredicate::BoundPredicate(ref bound_predicate) = predicate {
-            let mut where_clauses = FxHashMap::default();
-            let mut repeated_spans = false;
-
-            for (definition, _, span_direct) in bound_predicate
-                .bounds
-                .iter()
-                .filter_map(get_trait_info_from_bound)
-            {
-                if let Some(_) = where_clauses.insert(definition, span_direct) {
-                    repeated_spans = true;
-                }
-            }
-
-            if repeated_spans {
-                let all_trait_span = bound_predicate
-                    .bounds
-                    .get(0)
-                    .unwrap()
-                    .span()
-                    .to(
-                        bound_predicate
-                        .bounds
-                        .iter()
-                        .last()
-                        .unwrap()
-                        .span());
-
-                let mut traits = where_clauses.values()
-                    .filter_map(|span| snippet_opt(cx, *span))
-                    .collect::<Vec<_>>();
-                traits.sort_unstable();
-                let traits = traits.join(" + ");
-                span_lint_and_sugg(
-                    cx,
-                    REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND,
-                    all_trait_span,
-                    "this where clause has already been specified",
-                    "try",
-                    traits,
-                    Applicability::MachineApplicable
-                    );
-            }
+            rollup_traits(
+                cx,
+                bound_predicate.bounds,
+                "this where clause contains repeated elements",
+            );
         }
     }
 }

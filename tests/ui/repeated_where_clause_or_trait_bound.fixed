@@ -1,8 +1,6 @@
 // run-rustfix
 //
-#![allow(
-    unused,
-)]
+#![allow(unused)]
 #![deny(clippy::repeated_where_clause_or_trait_bound)]
 
 fn bad_foo<T: Clone + Copy, U: Clone + Copy>(arg0: T, argo1: U) {
