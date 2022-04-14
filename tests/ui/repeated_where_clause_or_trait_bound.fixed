@@ -5,13 +5,13 @@
 )]
 #![deny(clippy::repeated_where_clause_or_trait_bound)]
 
-fn bad_foo<T: Clone + Clone + Clone + Copy, U: Clone + Copy>(arg0: T, argo1: U) {
+fn bad_foo<T: Clone + Copy, U: Clone + Copy>(arg0: T, argo1: U) {
     unimplemented!();
 }
 
 fn bad_bar<T, U>(arg0: T, arg1: U)
 where
-    T: Clone + Clone + Clone + Copy,
+    T: Clone + Copy,
     U: Clone + Copy,
 {
     unimplemented!();
@@ -46,7 +46,7 @@ trait BadSelfTraitBound: Clone + Clone + Clone {
 trait BadSelfWhereClause {
     fn f()
     where
-        Self: Clone + Clone + Clone;
+        Self: Clone;
 }
 
 trait GoodTraitBound<T: Clone + Copy, U: Clone + Copy> {
@@ -60,14 +60,14 @@ trait GoodWhereClause<T, U> {
         U: Clone + Copy;
 }
 
-trait BadTraitBound<T: Clone + Clone + Clone + Copy, U: Clone + Copy> {
+trait BadTraitBound<T: Clone + Copy, U: Clone + Copy> {
     fn f();
 }
 
 trait BadWhereClause<T, U> {
     fn f()
     where
-        T: Clone + Clone + Clone + Copy,
+        T: Clone + Copy,
         U: Clone + Copy;
 }
 

@@ -1,87 +1,38 @@
-error: this trait bound has already been specified
-  --> $DIR/repeated_where_clause_or_trait_bound.rs:3:31
+error: this trait bound contains repeated elements
+  --> $DIR/repeated_where_clause_or_trait_bound.rs:8:15
    |
 LL | fn bad_foo<T: Clone + Clone + Clone + Copy, U: Clone + Copy>(arg0: T, argo1: U) {
-   |                               ^^^^^
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `Clone + Copy`
    |
 note: the lint level is defined here
-  --> $DIR/repeated_where_clause_or_trait_bound.rs:1:9
+  --> $DIR/repeated_where_clause_or_trait_bound.rs:6:9
    |
 LL | #![deny(clippy::repeated_where_clause_or_trait_bound)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   = help: consider removing this trait bound
-
-error: this trait bound has already been specified
-  --> $DIR/repeated_where_clause_or_trait_bound.rs:3:23
-   |
-LL | fn bad_foo<T: Clone + Clone + Clone + Copy, U: Clone + Copy>(arg0: T, argo1: U) {
-   |                       ^^^^^
-   |
-   = help: consider removing this trait bound
 
 error: this where clause has already been specified
-  --> $DIR/repeated_where_clause_or_trait_bound.rs:9:24
+  --> $DIR/repeated_where_clause_or_trait_bound.rs:14:8
    |
 LL |     T: Clone + Clone + Clone + Copy,
-   |                        ^^^^^
-   |
-   = help: consider removing this where clause
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `Clone + Copy`
 
 error: this where clause has already been specified
-  --> $DIR/repeated_where_clause_or_trait_bound.rs:9:16
-   |
-LL |     T: Clone + Clone + Clone + Copy,
-   |                ^^^^^
-   |
-   = help: consider removing this where clause
-
-error: this where clause has already been specified
-  --> $DIR/repeated_where_clause_or_trait_bound.rs:44:31
+  --> $DIR/repeated_where_clause_or_trait_bound.rs:49:15
    |
 LL |         Self: Clone + Clone + Clone;
-   |                               ^^^^^
-   |
-   = help: consider removing this where clause
+   |               ^^^^^^^^^^^^^^^^^^^^^ help: try: `Clone`
 
-error: this where clause has already been specified
-  --> $DIR/repeated_where_clause_or_trait_bound.rs:44:23
-   |
-LL |         Self: Clone + Clone + Clone;
-   |                       ^^^^^
-   |
-   = help: consider removing this where clause
-
-error: this trait bound has already been specified
-  --> $DIR/repeated_where_clause_or_trait_bound.rs:58:40
+error: this trait bound contains repeated elements
+  --> $DIR/repeated_where_clause_or_trait_bound.rs:63:24
    |
 LL | trait BadTraitBound<T: Clone + Clone + Clone + Copy, U: Clone + Copy> {
-   |                                        ^^^^^
-   |
-   = help: consider removing this trait bound
-
-error: this trait bound has already been specified
-  --> $DIR/repeated_where_clause_or_trait_bound.rs:58:32
-   |
-LL | trait BadTraitBound<T: Clone + Clone + Clone + Copy, U: Clone + Copy> {
-   |                                ^^^^^
-   |
-   = help: consider removing this trait bound
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `Clone + Copy`
 
 error: this where clause has already been specified
-  --> $DIR/repeated_where_clause_or_trait_bound.rs:65:28
+  --> $DIR/repeated_where_clause_or_trait_bound.rs:70:12
    |
 LL |         T: Clone + Clone + Clone + Copy,
-   |                            ^^^^^
-   |
-   = help: consider removing this where clause
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `Clone + Copy`
 
-error: this where clause has already been specified
-  --> $DIR/repeated_where_clause_or_trait_bound.rs:65:20
-   |
-LL |         T: Clone + Clone + Clone + Copy,
-   |                    ^^^^^
-   |
-   = help: consider removing this where clause
-
-error: aborting due to 10 previous errors
+error: aborting due to 5 previous errors
 

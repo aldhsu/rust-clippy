@@ -1,5 +1,5 @@
-use clippy_utils::diagnostics::span_lint_and_help;
-use clippy_utils::source::{snippet, snippet_with_applicability};
+use clippy_utils::diagnostics::{span_lint_and_sugg, span_lint_and_help};
+use clippy_utils::source::{snippet, snippet_with_applicability, snippet_opt};
 use clippy_utils::{SpanlessEq, SpanlessHash};
 use core::hash::{Hash, Hasher};
 use if_chain::if_chain;
@@ -287,18 +287,44 @@ fn check_bounds_or_where_duplication(cx: &LateContext<'_>, gen: &'_ Generics<'_>
 
     for param in gen.params {
         let mut map = FxHashMap::default();
-        if let ParamName::Plain(name) = param.name {
-            for (definition, _, span_direct) in param.bounds.iter().rev().filter_map(get_trait_info_from_bound) {
-                if let Some(span_direct) = map.insert((name, definition), span_direct) {
-                    span_lint_and_help(
-                        cx,
-                        REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND,
-                        span_direct,
-                        "this trait bound has already been specified",
-                        None,
-                        "consider removing this trait bound",
-                    );
+        let mut repeated_spans = false;
+        if let ParamName::Plain(name) = param.name { // other alternatives are errors and elided which won't have duplicates
+            for bound in param.bounds.iter().filter_map(get_trait_info_from_bound) {
+                let (definition, _, span_direct) = bound;
+                if let Some(_) = map.insert(definition, span_direct) {
+                    repeated_spans = true;
                 }
+            }
+
+            if repeated_spans {
+                let all_trait_span = param
+                    .bounds
+                    .get(0)
+                    .unwrap()
+                    .span()
+                    .to(
+                        param
+                        .bounds
+                        .iter()
+                        .last()
+                        .unwrap()
+                        .span());
+
+                let mut traits = map.values()
+                    .filter_map(|span| snippet_opt(cx, *span))
+                    .collect::<Vec<_>>();
+                traits.sort_unstable();
+                let traits = traits.join(" + ");
+
+                span_lint_and_sugg(
+                    cx,
+                    REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND,
+                    all_trait_span,
+                    "this trait bound contains repeated elements",
+                    "try",
+                    traits,
+                    Applicability::MachineApplicable
+                    );
             }
         }
     }
@@ -306,22 +332,46 @@ fn check_bounds_or_where_duplication(cx: &LateContext<'_>, gen: &'_ Generics<'_>
     for predicate in gen.where_clause.predicates {
         if let WherePredicate::BoundPredicate(ref bound_predicate) = predicate {
             let mut where_clauses = FxHashMap::default();
+            let mut repeated_spans = false;
+
             for (definition, _, span_direct) in bound_predicate
                 .bounds
                 .iter()
                 .filter_map(get_trait_info_from_bound)
-                .rev()
             {
-                if let Some(span_direct) = where_clauses.insert(definition, span_direct) {
-                    span_lint_and_help(
-                        cx,
-                        REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND,
-                        span_direct,
-                        "this where clause has already been specified",
-                        None,
-                        "consider removing this where clause",
-                    );
+                if let Some(_) = where_clauses.insert(definition, span_direct) {
+                    repeated_spans = true;
                 }
+            }
+
+            if repeated_spans {
+                let all_trait_span = bound_predicate
+                    .bounds
+                    .get(0)
+                    .unwrap()
+                    .span()
+                    .to(
+                        bound_predicate
+                        .bounds
+                        .iter()
+                        .last()
+                        .unwrap()
+                        .span());
+
+                let mut traits = where_clauses.values()
+                    .filter_map(|span| snippet_opt(cx, *span))
+                    .collect::<Vec<_>>();
+                traits.sort_unstable();
+                let traits = traits.join(" + ");
+                span_lint_and_sugg(
+                    cx,
+                    REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND,
+                    all_trait_span,
+                    "this where clause has already been specified",
+                    "try",
+                    traits,
+                    Applicability::MachineApplicable
+                    );
             }
         }
     }
