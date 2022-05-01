@@ -8,7 +8,8 @@ use rustc_data_structures::unhash::UnhashMap;
 use rustc_errors::Applicability;
 use rustc_hir::def::Res;
 use rustc_hir::{
-    GenericBound, Generics, Item, ItemKind, Node, Path, PathSegment, QPath, TraitItem, Ty, TyKind, WherePredicate,
+    GenericArg, GenericBound, Generics, Item, ItemKind, Node, Path, PathSegment, QPath, TraitItem, TraitRef, Ty,
+    TyKind, WherePredicate,
 };
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_session::{declare_tool_lint, impl_lint_pass};
@@ -94,7 +95,7 @@ declare_clippy_lint! {
     /// ```
     #[clippy::version = "1.62.0"]
     pub REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND,
-    pedantic,
+    nursery,
     "Traits are repeated within trait bounds or where clause"
 }
 
@@ -280,61 +281,22 @@ fn check_trait_bound_duplication(cx: &LateContext<'_>, gen: &'_ Generics<'_>) {
     }
 }
 
+#[derive(PartialEq, Eq, Hash, Debug)]
+struct ComparableTraitRef(Res, Vec<Res>);
+
 fn check_bounds_or_where_duplication(cx: &LateContext<'_>, gen: &'_ Generics<'_>) {
-    fn rollup_traits(cx: &LateContext<'_>, bounds: &[GenericBound<'_>], msg: &str) {
-        let mut map = FxHashMap::default();
-        let mut repeated_spans = false;
-        for bound in bounds.iter().filter_map(get_trait_info_from_bound) {
-            let (definition, _, span_direct) = bound;
-            if map.insert(definition, span_direct).is_some() {
-                repeated_spans = true;
-            }
-        }
-
-        if_chain! {
-            if repeated_spans;
-            if let Some(first_trait) = bounds.get(0);
-            if let Some(last_trait) = bounds.iter().last();
-            then {
-                let all_trait_span = first_trait.span().to(last_trait.span());
-
-                let mut traits = map.values()
-                    .filter_map(|span| snippet_opt(cx, *span))
-                    .collect::<Vec<_>>();
-                traits.sort_unstable();
-                let traits = traits.join(" + ");
-
-                span_lint_and_sugg(
-                    cx,
-                    REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND,
-                    all_trait_span,
-                    msg,
-                    "try",
-                    traits,
-                    Applicability::MachineApplicable
-                    );
-            }
-        }
-    }
-
-    if gen.span.from_expansion() || (gen.params.is_empty() && gen.where_clause.predicates.is_empty()) {
+    if gen.span.from_expansion() {
         return;
     }
 
-    for param in gen.params {
-        if let ParamName::Plain(_) = param.name {
-            // other alternatives are errors and elided which won't have duplicates
-            rollup_traits(cx, param.bounds, "this trait bound contains repeated elements");
-        }
-    }
-
-    for predicate in gen.where_clause.predicates {
+    for predicate in gen.predicates {
         if let WherePredicate::BoundPredicate(ref bound_predicate) = predicate {
-            rollup_traits(
-                cx,
-                bound_predicate.bounds,
-                "this where clause contains repeated elements",
-            );
+            let msg = if predicate.in_where_clause() {
+                "these where clauses contain repeated elements"
+            } else {
+                "these bounds contain repeated elements"
+            };
+            rollup_traits(cx, bound_predicate.bounds, msg);
         }
     }
 }
@@ -344,5 +306,70 @@ fn get_trait_info_from_bound<'a>(bound: &'a GenericBound<'_>) -> Option<(Res, &'
         Some((t.trait_ref.path.res, t.trait_ref.path.segments, t.span))
     } else {
         None
+    }
+}
+
+// FIXME: ComparableTraitRef does not support nested bounds needed for associated_type_bounds
+fn into_comparable_trait_ref(trait_ref: &TraitRef<'_>) -> ComparableTraitRef {
+    ComparableTraitRef(
+        trait_ref.path.res,
+        trait_ref
+            .path
+            .segments
+            .iter()
+            .filter_map(|segment| {
+                // get trait bound type arguments
+                Some(segment.args?.args.iter().filter_map(|arg| {
+                    if_chain! {
+                        if let GenericArg::Type(ty) = arg;
+                        if let TyKind::Path(QPath::Resolved(_, path)) = ty.kind;
+                        then { return Some(path.res) }
+                    }
+                    None
+                }))
+            })
+            .flatten()
+            .collect(),
+    )
+}
+
+fn rollup_traits(cx: &LateContext<'_>, bounds: &[GenericBound<'_>], msg: &str) {
+    let mut map = FxHashMap::default();
+    let mut repeated_res = false;
+    for bound in bounds.iter().filter_map(|bound| {
+        if let GenericBound::Trait(t, _) = bound {
+            Some((into_comparable_trait_ref(&t.trait_ref), t.span))
+        } else {
+            None
+        }
+    }) {
+        let (comparable_bound, span_direct) = bound;
+        if map.insert(comparable_bound, span_direct).is_some() {
+            repeated_res = true;
+        }
+    }
+
+    if_chain! {
+        if repeated_res;
+        if let [first_trait, .., last_trait] = bounds;
+        then {
+            let all_trait_span = first_trait.span().to(last_trait.span());
+
+            let mut traits = map.values()
+                .filter_map(|span| snippet_opt(cx, *span))
+                .collect::<Vec<_>>();
+            traits.sort_unstable();
+            let traits = traits.join(" + ");
+
+            span_lint_and_sugg(
+                cx,
+                REPEATED_WHERE_CLAUSE_OR_TRAIT_BOUND,
+                all_trait_span,
+                msg,
+                "try",
+                traits,
+                Applicability::MachineApplicable
+                );
+        }
     }
 }

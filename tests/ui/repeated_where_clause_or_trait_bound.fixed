@@ -92,4 +92,14 @@ where
 
 fn no_error_separate_arg_bounds(program: impl AsRef<()>, dir: impl AsRef<()>, args: &[impl AsRef<()>]) {}
 
+trait GenericTrait<T> {}
+
+fn good_generic<T: GenericTrait<u64> + GenericTrait<u32>>(arg0: T) {
+    unimplemented!();
+}
+
+fn bad_generic<T: GenericTrait<u32> + GenericTrait<u64>>(arg0: T) {
+    unimplemented!();
+}
+
 fn main() {}
