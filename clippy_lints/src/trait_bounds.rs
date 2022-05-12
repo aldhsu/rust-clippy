@@ -120,6 +120,18 @@ impl<'tcx> LateLintPass<'tcx> for TraitBounds {
         check_bounds_or_where_duplication(cx, gen);
     }
 
+    fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        // special handling for self trait bounds as these are not considered generics
+        // ie. trait Foo: Display {}
+        if let Item {
+            kind: ItemKind::Trait(_, _, _, bounds, ..),
+            ..
+        } = item
+        {
+            rollup_traits(cx, bounds, "these bounds contain repeated elements");
+        }
+    }
+
     fn check_trait_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx TraitItem<'tcx>) {
         let mut self_bounds_map = FxHashMap::default();
 

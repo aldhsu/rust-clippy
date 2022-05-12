@@ -37,7 +37,7 @@ trait GoodSelfWhereClause {
         Self: Clone + Copy;
 }
 
-trait BadSelfTraitBound: Clone + Clone + Clone {
+trait BadSelfTraitBound: Clone {
     fn f();
 }
 
