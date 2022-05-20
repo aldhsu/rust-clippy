@@ -98,4 +98,15 @@ trait FooIter: Iterator<Item = Foo> {
 // This should not lint
 fn impl_trait(_: impl AsRef<str>, _: impl AsRef<str>) {}
 
+trait BoundWithGeneric<T> {}
+
+fn good_bounds_with_generic<T: BoundWithGeneric<u32>>(arg0: T, arg1: T)
+where
+    T: BoundWithGeneric<u64>,
+{
+    unimplemented!();
+}
+
+fn repeat_should_not_lint<T: Clone + Clone + Default, Z: Copy>(arg0: T, arg1: Z) {}
+
 fn main() {}
